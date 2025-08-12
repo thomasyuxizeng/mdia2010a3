@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nun Backroom Forum</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="nun_forum.css" />
+</head>
+<body>
+  <h1>Nun Backroom Forum : Relay Node</h1>
+  <p>Shadow channel established. Passive telemetry log:</p>
+  <div class="log" id="log" aria-live="polite" aria-label="Boot sequence log"></div>
+  <button id="closeBtn" aria-label="Close window" type="button">Close</button>
+  <!-- Boot audio (plays during progressive log) -->
+  <audio id="boot-audio" src="terminal.mp3" preload="auto" aria-hidden="true"></audio>
+  <!-- Close warning audio (plays 3s before seizure overlay) -->
+  <audio id="close-audio" src="close.mp3" preload="auto" aria-hidden="true"></audio>
+  <!-- Ambiance audio (plays once on first egg image click) -->
+  <audio id="ambiance-audio" src="ambiance.mp3" preload="auto" aria-hidden="true"></audio>
+  <script>
+    // =============================================================
+    // Nun Backroom Forum Inline Script
+    // Provides: boot log animation + audio, dynamic forum markup build,
+    // image/video carousel, seizure overlay trigger, keyboard handling.
+    // All comments describe current behavior in present tense.
+    // =============================================================
+
+    // ------------------------------
+    // Boot Log Data (lines stream into .log element)
+    // ------------------------------
+    const BOOT_LINES = [
+      '[ HANDSHAKE ] Bypassing NSS Nutrascan™ filters',
+      '[ OK ] Recipe encryption suite active',
+      '[ OK ] Black market heartbeat detected',
+      '[ TRACE ] Enforcer drone proximity: 37m',
+      '[ WARN ] Contaminated packet (taste-trace expired)',
+      '[ OK ] Farm cryptomap integrity verified',
+      '[ NOTICE ] Soil Ghost acknowledged - safehouse online'
+    ];
+
+    // ------------------------------
+    // Forum Mock Data (channels + thread objects)
+    // ------------------------------
+    const CHANNELS = ['alerts','questions','ama','market','announcements','off-topic'];
+    const THREADS = [
+      { title:'PSA: Dongdaemun "Green Grocer" Raided Last Night. Avoid.', channel:'alerts', replies:14, age:'2m', user:'streetwisealerts', status:'HOT', media:'vid', video:'closedshop.mp4', desc:'Saw NSS Enforcers smash Old Man Park’s stall at 3AM. He’s gone. His heirloom baechu (cabbage!) – all crushed by bots. They called it "unlicensed biohazard distribution." 5 years mandatory "nutritional re-education" if caught buying. Stay safe. Deleting this burner account after today.' },
+      { title:'My Halmeoni Cried Holding a Real Egg. Worth the Rations?', channel:'questions', replies:8, age:'47m', user:'kpopkollector', status:'OK', media:'img', images:['egg.jpg','egg 2.jpg','egg 3.jpg'], desc:'Traded 3 weeks of SynthCredits for 2 smuggled eggs. She hadn’t held one since ‘29. Cooked them gyeranbap style… she cried remembering Appa’s farm. NSS says this is "nostalgia sickness." But seeing her smile? Worth starving a little. Does anyone have any chicken egg left for sale?' },
+      { title:'Grower AMA (Anonymous/VPN): Why We Risk the Farms.', channel:'ama', replies:23, age:'7hr', user:'farmersunion', status:'SYS', media:'vid', video:'farms.mp4', desc:'NSS calls us "contaminant cartels." We’re just farmers they bankrupted buying land/tax breaks. Why grow illegal ssam greens in hydroponic tunnels? Because soil matters. Because taste isn’t "data." Because someone must remember how food lives, not just gets printed. Ask anything. Servers rotate.' },
+      { title:'NSS Internal Doc Leak (Verified)', channel:'announcements', replies:5, age:'1d', user:'janeli', status:'OK', noMedia:true, desc:'[LINK: ENCRYPTED] Got their ’33 strategy pdf. Calling family farms "bio-contaminant vectors." Budget: "Enforcement Squads" get more funding than Seoul’s schools. Goal: "Total ecosystem replacement." They don’t just own the food. They want to ERASE the idea of anything else. Stay angry.' },
+      { title:'Jeju Oranges: 50,000₩ EACH?! Who Actually Buys This?', channel:'questions', replies:4, age:'14hr', user:'BrokeInBusan', media:'img', image:'fruit.jpg', desc:'Saw a smuggler’s list. REAL Jeju orange: 50k. Wild persimmon: 30k. Who has that? Corporate execs? Politicians? While we drink "Citrus Flavor #7." NSS crushed the orchards for their labs. Now real fruit is a luxury drug. Anyone know a cheaper connect? Or just venting…' },
+      { title:'Lost Recipe Help: How Did They Make Proper Kimchi Without SynthPaste?', channel:'questions', replies:11, age:'19hr', user:'hi2018', media:'img', image:'kimchi.jpg', desc:'Studying pre-Collapse food vids. Kimchi used actual chili flakes, shrimp, fermentation?! NSS Kimchi™ is just red salt-goop. Grandma says the taste is dead. Anyone have real family recipes saved offline? Or know where to find real gochugaru? Preferably using legal methods, no dark web stuff.' },
+      { title:'SUNDAY ONLY: Authentic Canton Char Siu', channel:'market', replies:19, age:'2d', user:'Tsmith', status:'HOT', media:'vid', video:'charsiu.mp4', desc:'Real deal. Pork shoulder marinated 3 days, honey-glazed over oak fire (remember fire?). That sticky-sweet-umami ghost flavor haunts your dreams. 1 portion: 75,000₩ OR 3 weeks SynthRations. Dongmyo Station back alley - look for faded blue dragon pharmacy. Knock 3-2-1. NSS scanners active - they call it "unregulated biohazard meat." We call it heritage. Come hungry. Come quiet.' }
+    ];
+
+    // ------------------------------
+    // Utility Shortcuts
+    // ------------------------------
+    const qs = sel => document.querySelector(sel);
+    const logEl = qs('#log');
+    let bootIndex = 0;
+    let bootAudioStarted = false;
+    let bootAudioUnlocked = false;
+    // NEW: ambiance playback guard
+    let ambiancePlayed = false; // Ensures ambiance audio plays only once after egg image click
+
+    // ------------------------------
+    // Audio Unlock & Boot Playback Control
+    // ------------------------------
+    function ensureBootAudio(){
+      if(bootAudioUnlocked) return;
+      const audio = document.getElementById('boot-audio');
+      if(!audio) return;
+      audio.volume = 0.8;
+      const attempt = audio.play();
+      if(attempt && attempt.then){
+        attempt.then(()=>{
+          bootAudioUnlocked = true;
+          removeAudioUnlockHandlers();
+          const btn = document.getElementById('audio-activate');
+          if(btn) btn.remove();
+        }).catch(()=>{
+          if(!document.getElementById('audio-activate')){
+            const b = document.createElement('button');
+            b.id='audio-activate';
+            b.type='button';
+            b.textContent='Activate Audio';
+            Object.assign(b.style, {position:'fixed', bottom:'1rem', right:'1rem', zIndex:100000, background:'#111', color:'#fff', font:'12px monospace', padding:'0.5rem 0.75rem', border:'1px solid #555', cursor:'pointer'});
+            b.addEventListener('click', ()=>{ ensureBootAudio(); });
+            document.body.appendChild(b);
+          }
+        });
+      }
+    }
+    function addAudioUnlockHandlers(){ ['pointerdown','keydown'].forEach(evt=>window.addEventListener(evt, ensureBootAudio, { once:true })); }
+    function removeAudioUnlockHandlers(){ ['pointerdown','keydown'].forEach(evt=>window.removeEventListener(evt, ensureBootAudio, { once:true })); }
+
+    // ------------------------------
+    // Boot Line Streamer (appends lines then fades audio)
+    // ------------------------------
+    function appendBootLine(){
+      if(!bootAudioStarted){
+        bootAudioStarted = true;
+        ensureBootAudio();
+        addAudioUnlockHandlers();
+      }
+      if(bootIndex < BOOT_LINES.length){
+        logEl.textContent += BOOT_LINES[bootIndex++] + '\n';
+        setTimeout(appendBootLine, 430);
+      } else {
+        const audio = document.getElementById('boot-audio');
+        if(audio){
+          const fade = setInterval(()=>{
+            if(audio.volume > 0.05){ audio.volume -= 0.05; }
+            else { audio.volume = 0; audio.pause(); clearInterval(fade); }
+          }, 120);
+        }
+        setTimeout(showForum, 600);
+      }
+    }
+
+    // ------------------------------
+    // Markup Builders (thread rows + full forum layout)
+    // ------------------------------
+    function createThreadRow(t, idx){
+      const statusClass = t.status === 'HOT' ? 'status-pill status-hot' : t.status === 'SYS' ? 'status-pill status-sys' : t.status ? 'status-pill' : '';
+      const statusSpan = t.status ? `<span class="${statusClass}">${t.status}</span>` : '';
+      const noMedia = !!t.noMedia;
+      const imageList = noMedia ? null : (t.images || (t.image ? [t.image] : null));
+      const hasImage = !!imageList;
+      const firstImage = hasImage ? imageList[0] : null;
+      const hasVideo = !noMedia && !!t.video;
+      const mediaClass = hasVideo ? 'thumb is-video' : (hasImage ? 'thumb is-image' : '');
+      const mediaLabel = hasVideo ? `Video: ${t.title}` : (hasImage ? `Image: ${t.title}` : '');
+      const landscapeClass = hasVideo ? 'media-landscape media-video' : (hasImage ? 'media-landscape media-image' : '');
+      const landscapeLabel = hasVideo ? `Thread video: ${t.title}` : (hasImage ? `Thread image: ${t.title}` : '');
+      const isCarousel = hasImage && imageList.length > 1;
+      const carouselAttrs = isCarousel ? ` data-images='${JSON.stringify(imageList)}' data-index="0" data-thread="${idx}" tabindex="0" role="button" aria-label="Image carousel: ${t.title}. Activate to cycle."` : '';
+      const thumbInner = hasVideo
+        ? `<video src="${t.video}" muted loop playsinline aria-label="${mediaLabel}"></video>`
+        : (hasImage ? `<img src="${firstImage}" alt="Thumbnail: ${t.title}" />` : '');
+      const landscapeInner = hasVideo
+        ? `<video src="${t.video}" muted loop playsinline autoplay aria-label="${landscapeLabel}"></video>`
+        : (hasImage ? `<img src="${firstImage}" alt="${landscapeLabel}" />` : '');
+      const thumbCell = thumbInner ? `<div class="${mediaClass}${isCarousel ? ' carousel' : ''}"${carouselAttrs}>${thumbInner}</div>` : '';
+      const landscapeBlock = landscapeInner ? `<div class="${landscapeClass}${isCarousel ? ' carousel' : ''}"${carouselAttrs}>${landscapeInner}</div>` : '';
+      return `<tr data-thread="${idx}">
+        <td class="thumb-cell">${thumbCell}</td>
+        <td><a class="thread-title" href="#" tabindex="-1">${t.title}${statusSpan}</a>
+          <div class="thread-meta">#${t.channel} • ${t.replies} replies • ${t.age}</div>
+        </td>
+        <td class="activity-col">${t.replies} / ${t.age}</td>
+        <td class="user-col">${t.user}</td>
+      </tr>
+      <tr class="thread-detail-row" aria-hidden="false" data-thread="${idx}">
+        <td colspan="4">
+          <div class="thread-detail">
+            ${landscapeBlock}
+            <div class="thread-desc">${t.desc}</div>
+          </div>
+        </td>
+      </tr>`;
+    }
+
+    function buildForumMarkup(){
+      const channelList = CHANNELS.map(c=>`<li tabindex="0">${c}</li>`).join('');
+      const threadRows = THREADS.map((t,i)=>createThreadRow(t,i)).join('');
+      return `
+        <div class="forum-banner">
+          <h2>/nun/backroom/forum/</h2>
+          <p>Transient relay – visual mock. Threads reflect synthetic traffic signatures.</p>
+        </div>
+        <div class="forum-layout">
+          <nav class="forum-nav" aria-label="Sections">
+            <h3>Channels</h3>
+            <ul>${channelList}</ul>
+          </nav>
+          <section class="threads-panel" aria-label="Threads">
+            <div class="threads-header">
+              <span>Threads</span>
+              <span class="tag">LOCAL</span>
+              <span class="tag">ORGANIC</span>
+            </div>
+            <div class="thread-scroller" role="region" aria-label="Thread list scroll area">
+              <table class="thread-list" role="grid" aria-label="Thread list">
+                <thead><tr><th scope="col"></th><th scope="col">Topic</th><th scope="col">Activity</th><th scope="col">Last</th></tr></thead>
+                <tbody>${threadRows}</tbody>
+              </table>
+            </div>
+            <div class="footer-note">visual mock • no persistence • interface shell only</div>
+          </section>
+        </div>`;
+    }
+
+    // ------------------------------
+    // Forum Assembly (replaces boot log with forum UI)
+    // ------------------------------
+    function hideBoot(){ ['h1','p','.log','#closeBtn'].forEach(sel=>{ const el=qs(sel); if(el) el.style.display='none'; }); }
+    function showForum(){
+      hideBoot();
+      const wrapper=document.createElement('div');
+      wrapper.id='forum-wrapper';
+      wrapper.innerHTML = buildForumMarkup();
+      document.body.appendChild(wrapper);
+      requestAnimationFrame(()=>{wrapper.classList.add('visible');});
+      setupImageCarousel();
+      setupSeizureWatch(wrapper);
+    }
+
+    // ------------------------------
+    // Carousel (cycles multi-image threads; syncs thumb + landscape)
+    // ------------------------------
+    function setupImageCarousel(){
+      const carousels = document.querySelectorAll('.carousel[data-images]');
+      if(!carousels.length) return;
+      const groups = {};
+      carousels.forEach(el=>{ const id = el.getAttribute('data-thread'); (groups[id] = groups[id] || []).push(el); });
+
+      function advance(el){
+        const images = JSON.parse(el.getAttribute('data-images'));
+        let idx = parseInt(el.getAttribute('data-index'),10) || 0;
+        idx = (idx + 1) % images.length;
+        const threadId = el.getAttribute('data-thread');
+        (groups[threadId]||[]).forEach(node=>{
+          node.setAttribute('data-index', idx);
+          const img = node.querySelector('img');
+          if(img){
+            img.classList.add('fading');
+            setTimeout(()=>{ img.src = images[idx]; img.classList.remove('fading'); }, 140);
+          }
+        });
+      }
+
+      carousels.forEach(el=>{
+        el.addEventListener('click', ()=>{
+          // Play ambiance on first user interaction with egg carousel (thread index 1)
+          if(!ambiancePlayed && el.getAttribute('data-thread') === '1'){
+            ambiancePlayed = true;
+            const amb = document.getElementById('ambiance-audio');
+            if(amb){ try { amb.volume = 0.2; amb.currentTime = 0; amb.play().catch(()=>{}); } catch(e){} }
+          }
+          advance(el);
+        });
+        el.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault();
+          if(!ambiancePlayed && el.getAttribute('data-thread') === '1'){
+            ambiancePlayed = true;
+            const amb = document.getElementById('ambiance-audio');
+            if(amb){ try { amb.volume = 0.2; amb.currentTime = 0; amb.play().catch(()=>{}); } catch(e){} }
+          }
+          advance(el);
+        }});
+        el.style.cursor = 'pointer';
+      });
+    }
+
+    // ------------------------------
+    // Seizure Overlay Trigger (click video -> delayed overlay + audio pre-warning)
+    // ------------------------------
+    let seizureTimer = null;
+    let seizureTriggered = false;
+    function setupSeizureWatch(wrapper){
+      const lastIdx = THREADS.length - 1;
+      const targets = wrapper.querySelectorAll(`tr[data-thread="${lastIdx}"] video`);
+      if(!targets.length) return;
+      targets.forEach(v=>{
+        v.addEventListener('click', ()=>{
+          if(seizureTriggered) return;
+            seizureTriggered = true;
+            seizureTimer = setTimeout(showSeizedOverlay, 5000);
+            const closeAudio = document.getElementById('close-audio');
+            if(closeAudio){
+              setTimeout(()=>{ try { closeAudio.currentTime = 0; closeAudio.play().catch(()=>{}); } catch(e){} }, 2000);
+            }
+        }, { once:true });
+      });
+    }
+
+    function showSeizedOverlay(){
+      if(document.getElementById('seizedOverlay')) return;
+      document.body.classList.add('seized-active');
+      const styleHide = document.createElement('style');
+      styleHide.textContent = `body.seized-active > *:not(#seizedOverlay){display:none !important;}`;
+      document.head.appendChild(styleHide);
+      const o = document.createElement('div');
+      o.id = 'seizedOverlay';
+      o.setAttribute('role','alert');
+      o.setAttribute('aria-live','assertive');
+      o.innerHTML = '<div class="seized-inner" aria-label="Site seizure notice">THIS WEBSITE HAS BEEN SEIZED</div>';
+      Object.assign(o.style, {
+        position:'fixed', inset:'0', background:'#f9f9f9', color:'#111', display:'flex',
+        alignItems:'center', justifyContent:'center', fontFamily:'monospace', fontWeight:'700',
+        fontSize:'clamp(2.2rem,6.5vw,5.5rem)', letterSpacing:'0.12em', textAlign:'center',
+        zIndex:99999, flexDirection:'column', padding:'2rem',
+        textShadow:'0 0 2px rgba(0,0,0,0.2)'
+      });
+      document.body.appendChild(o);
+    }
+
+    // ------------------------------
+    // Events (close button + escape key)
+    // ------------------------------
+    qs('#closeBtn').addEventListener('click', () => window.close());
+    qs('#closeBtn').addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); window.close(); } });
+    window.addEventListener('keydown', e => { if(e.key==='Escape') window.close(); });
+
+    // ------------------------------
+    // Init (kick off boot line stream)
+    // ------------------------------
+    appendBootLine();
+  </script>
+</body>
+</html>

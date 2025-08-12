@@ -1,0 +1,176 @@
+/* =============================================================
+   Nun Backroom Forum Stylesheet (nun_forum.css)
+   Provides themed popup forum shell: boot log, channel nav, thread list,
+   media thumbnails, responsive layout, and status indicators.
+   All comments describe current behavior in present tense.
+   ============================================================= */
+
+/* == Root Theme Variables (define shared colors, shadows, typography) == */
+:root {
+  --accent: #ff3ad9;
+  --accent-glow: #ff3ad9aa;
+  --accent-soft: #ff9dee;
+  --bg: #060608;
+  --mono: 'IBM Plex Mono', monospace;
+  --panel-bg: #0d0d11;
+  --panel-border: #2b2b38;
+  --panel-border-soft: #232331;
+  --pill-hot-bg: #401326;
+  --pill-sys-bg: #13263f;
+  --shadow-panel: 0 0 0 1px var(--panel-border-soft), 0 0 22px -6px var(--accent-glow);
+  --shadow-strong: 0 0 0 1px var(--accent), 0 0 32px -6px var(--accent-glow);
+  --sys-border: #4a8dff;
+  --text: #f0f0f0;
+  --text-fade: #a6a6b3;
+  --text-soft: #c6b9c6;
+  --white: #ffffff;
+}
+
+/* == Base Structure (sets layout foundation & base typography) == */
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--mono);
+  padding: 1.5rem;
+}
+
+/* == Heading & Text Primitives == */
+h1 { font-size: 1.35rem; letter-spacing: 0.07em; margin-top: 0; text-transform: uppercase; }
+p { max-width: 60ch; }
+
+/* == Generic Button Styling (used for close / audio activation) == */
+button {
+  background: #1e1e24;
+  border: 1px solid #59596a;
+  border-radius: 6px;
+  color: var(--white);
+  cursor: pointer;
+  font-family: var(--mono);
+  letter-spacing: 0.05em;
+  margin-top: 1rem;
+  padding: 0.65rem 1.15rem;
+}
+button:hover,
+button:focus { background: #2b2b33; outline: none; }
+
+/* == Boot Log (displays progressive system lines) == */
+.log {
+  background: var(--panel-bg);
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px #343448, 0 0 18px var(--accent);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin-top: 1rem;
+  padding: 1rem 1.2rem;
+  white-space: pre-wrap;
+}
+
+/* == Forum Wrapper (fades in assembled forum UI) == */
+#forum-wrapper { display: flex; flex-direction: column; min-height: 100%; opacity: 0; transition: opacity .6s ease; }
+#forum-wrapper.visible { opacity: 1; }
+
+/* == Banner (presents title + explanatory subline) == */
+.forum-banner {
+  background: linear-gradient(135deg, #120016, #2d002e 45%, #4d0045);
+  border: 1px solid #5d1b66;
+  border-radius: 10px;
+  box-shadow: var(--shadow-strong);
+  overflow: hidden;
+  padding: 1.15rem 1.25rem 1.2rem;
+  position: relative;
+}
+.forum-banner:before {
+  background: repeating-linear-gradient(90deg, rgba(255,255,255,0.07) 0 2px, transparent 2px 4px);
+  content: "";
+  inset: 0;
+  mix-blend-mode: overlay;
+  opacity: .15;
+  pointer-events: none;
+  position: absolute;
+}
+.forum-banner h2 { color: #ffe9ff; font-size: clamp(.92rem, 2.2vw, 1.1rem); letter-spacing: 0.1em; line-height: 1.1; margin: 0; padding-bottom: 2px; text-transform: uppercase; white-space: nowrap; }
+.forum-banner p { color: var(--text-soft); font-size: 0.75rem; letter-spacing: 0.04em; margin: 0.45rem 0 0; }
+
+/* == Main Layout (splits channel nav and threads panel) == */
+.forum-layout { display: grid; flex: 1; gap: 1.25rem; grid-template-columns: 240px 1fr; height: 100%; margin-top: 1.3rem; }
+
+/* == Navigation (lists channel categories) == */
+.forum-nav { background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 10px; box-shadow: var(--shadow-panel); padding: 1rem; }
+.forum-nav h3 { color: var(--accent-soft); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; margin: 0 0 .6rem; text-transform: uppercase; }
+.forum-nav ul { list-style: none; margin: 0; padding: 0; font-size: 0.8rem; }
+.forum-nav li { border-radius: 6px; cursor: pointer; padding: 0.45rem 0.35rem; position: relative; }
+.forum-nav li:hover,
+.forum-nav li:focus { background: #181820; color: var(--white); outline: none; }
+.forum-nav li:before { content: "›"; color: var(--accent); margin-right: 0.4rem; }
+
+/* == Threads Panel (hosts thread table & footer note) == */
+.threads-panel { background: var(--panel-bg); border: 1px solid var(--panel-border); border-radius: 10px; box-shadow: var(--shadow-panel); display: flex; flex: 1; flex-direction: column; min-height: 0; padding: 0.9rem 1rem 1.2rem; }
+.threads-header { align-items: center; color: #ffb8f4; display: flex; flex-wrap: wrap; font-size: 0.7rem; gap: .6rem; letter-spacing: 0.09em; margin-bottom: 0.6rem; text-transform: uppercase; }
+.threads-header .tag { background: #1d1d24; border: 1px solid #31313f; border-radius: 6px; color: #dcd3de; font-size: 0.65rem; letter-spacing: 0.08em; padding: 0.35rem 0.55rem; }
+
+/* == Thread Scroller (enables overflow scroll without visible bar) == */
+.thread-scroller { border-radius: 8px; flex: 1; min-height: 0; overflow: auto; scrollbar-width: none; }
+.thread-scroller::-webkit-scrollbar { height: 0; width: 0; }
+
+/* == Thread Table (lists threads & detail rows) == */
+table.thread-list { border-collapse: collapse; font-size: 0.78rem; width: 100%; }
+table.thread-list th { border-bottom: 1px solid #2f2f3b; color: var(--accent-soft); font-size: 0.68rem; font-weight: 600; letter-spacing: 0.14em; padding: 0.35rem 0.4rem; text-align: left; }
+table.thread-list td { border-bottom: 1px solid #181820; padding: 0.55rem 0.4rem; vertical-align: top; }
+table.thread-list tr:last-child td { border-bottom: none; }
+table.thread-list tr { transition: background .25s; }
+table.thread-list tr:hover { background: #17171d; }
+table.thread-list th:first-child { width: 60px; }
+
+/* == Thread Title & Metadata Styling == */
+.thread-title { color: var(--white); font-weight: 500; position: relative; text-decoration: none; }
+.thread-title:before { background: var(--accent); border-radius: 50%; box-shadow: 0 0 6px var(--accent); content: ""; height: 4px; left: -0.55rem; position: absolute; top: 0.55rem; width: 4px; }
+.thread-meta { color: var(--text-fade); font-size: 0.64rem; letter-spacing: 0.05em; margin-top: 0.15rem; }
+
+/* == Status Pills (indicate thread state) == */
+.status-pill { background: #2b1431; border: 1px solid var(--accent-glow); border-radius: 999px; color: var(--accent-soft); display: inline-block; font-size: 0.55rem; letter-spacing: 0.07em; margin-left: 0.4rem; padding: 0.25rem 0.45rem; }
+.status-hot { background: var(--pill-hot-bg); color: #ffbfbf; }
+.status-sys { background: var(--pill-sys-bg); border-color: var(--sys-border); color: #b7dcff; }
+
+/* == Column / Meta Cells (align activity & user columns) == */
+.activity-col { font-size: 0.65rem; white-space: nowrap; }
+.user-col { color: #d5d5e2; font-size: 0.65rem; white-space: nowrap; }
+.footer-note { font-size: 0.58rem; letter-spacing: 0.11em; margin-top: 0.9rem; opacity: 0.55; text-transform: uppercase; }
+
+/* == Thumbnails (render video/image markers & base media cells) == */
+.thumb-cell { width: 60px; }
+.thumb { align-items: center; background: #15151b; border: 1px solid #31313f; border-radius: 6px; box-shadow: 0 0 0 1px #20202a, 0 0 6px -2px var(--accent-glow); color: var(--accent-soft); display: flex; font-size: .55rem; height: 48px; justify-content: center; letter-spacing: .08em; overflow: hidden; position: relative; width: 48px; }
+.thumb.is-video:before { border-bottom: 7px solid transparent; border-left: 12px solid var(--accent-soft); border-top: 7px solid transparent; content: ''; height: 0; position: absolute; width: 0; }
+.thumb.is-image:before { content: 'IMG'; font-size: .55rem; letter-spacing: .12em; opacity: .85; }
+.thumb.is-video span,
+.thumb.is-image span { background: repeating-linear-gradient(135deg,#2a2a33 0 8px,#1a1a22 8px 16px); inset: 0; mix-blend-mode: overlay; opacity: .25; position: absolute; }
+.thumb:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.media-landscape img, .thumb img { transition: opacity .3s ease; display:block; height:100%; width:100%; object-fit:cover; }
+
+/* == Detail Rows (expand with full description + landscape media) == */
+.thread-detail-row { display: table-row; }
+.thread-detail-row td { background: transparent; border-bottom: 1px solid #181820; padding: 0 0 1.2rem 0; }
+.thread-detail { display: grid; gap: 0.75rem; grid-template-columns: minmax(0,1fr); margin-left: 60px; /* Aligns after thumb */ }
+
+/* == Landscape Media (presents primary thread media) == */
+.media-landscape { align-items: center; aspect-ratio: 16 / 9; background: #141419; border: 1px solid #2a2a34; border-radius: 10px; box-shadow: 0 0 0 1px #20202a, 0 0 10px -4px var(--accent-glow); display: flex; justify-content: center; overflow: hidden; position: relative; width: 100%; }
+.media-landscape:before { background: repeating-linear-gradient(45deg, rgba(255,255,255,0.05) 0 8px, transparent 8px 16px); content: ""; inset: 0; opacity: .25; pointer-events: none; position: absolute; }
+.media-landscape.media-video:after { color: var(--accent-soft); content: "▶"; font-size: 2.2rem; opacity: 0.85; text-shadow: 0 0 12px var(--accent); }
+.media-landscape span.label { background: #1f1f27; border: 1px solid #31313f; border-radius: 4px; color: var(--accent-soft); font-size: .55rem; left: 8px; letter-spacing: .1em; padding: 2px 6px; position: absolute; top: 6px; }
+
+/* == Thread Description (displays narrative body text) == */
+.thread-desc { color: var(--text-fade); font-size: 0.75rem; letter-spacing: 0.035em; line-height: 1.4; max-width: 80ch; }
+.thread-detail-row:last-child td { border-bottom: none; }
+
+/* == Responsive Adjustments (stacks layout & shrinks media) == */
+@media (max-width: 840px) { .thread-detail { margin-left: 0; } }
+@media (max-width: 840px) {
+  #forum-wrapper .forum-layout { display: flex; flex-direction: column; }
+  .forum-nav { order: 2; }
+  .threads-panel { order: 1; }
+  table.thread-list th:first-child { width: 48px; }
+  .thumb { height: 40px; width: 40px; }
+  .thumb-cell { width: 48px; }
+}
